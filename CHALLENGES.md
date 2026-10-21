@@ -1,24 +1,95 @@
-# POM Challenges — automationintesting.online
+# POM Challenges — playground.qatools.dev
 
-Target site: https://automationintesting.online/ (Restful-Booker-Platform demo)
+Target site: https://playground.qatools.dev/ (QATools Playground demo shop)
 
 Suggested layout:
-- `tests/pages/` — one POM per page (RoomsListPage, ReservationPage, AdminLoginPage, ...)
-- `tests/components/` — reusable widgets shared across pages (CalendarComponent, Header, ContactForm)
+
+- `tests/pages/` — one POM per page (`homepage.ts`, `products.ts`, ...)
+- `tests/components/` — reusable widgets shared across pages (NavbarComponent,
+  PromoCarouselComponent, ProductCardComponent)
 - `tests/specs/` — the actual test files
 - `tests/utils/` — test data, helpers
 - `tests/fixtures.ts` — `test.extend()` wiring POMs into tests
 
-## Challenges
+You already have a starting `homepage` POM (`pageTitle`, `productCard` via
+`getByTestId(/^product-card-\d+$/)`) and two passing tests (title visible, 4
+featured products). The challenges below build on that.
 
-- [ ] **1. RoomsListPage POM** — list the three room cards (Single/Double/Suite), expose `getPrice(roomName)` and `bookNow(roomName)`. Assert displayed prices (£100/£150/£225).
+Useful `data-testid`s discovered on the homepage: `hero`, `cta-shop`,
+`cta-clinic`, `categories`,
+`category-{electronics,clothing,books,home,toys,sports}`, `featured`,
+`product-card-{1-4}`, `wish-toggle-{1-4}`, `product-link-{1-4}`,
+`star-rating-{1-4}`, `price-{1-4}`, `add-to-cart-{1-4}`,
+`product-details-{1-4}`, `oos-badge`, `promo-carousel`,
+`promo-prev`/`promo-next`, `promo-dot-{0-6}`, `nav-wishlist`, `nav-cart`.
 
-- [ ] **2. ContactForm component** — fill and submit the "Send Us a Message" form (Name/Email/Phone/Subject/Message). Write a happy-path test, then a negative test for submitting empty — first figure out empirically what actually happens (no visible inline errors were observed on empty submit; check native HTML5 validation vs. a silent/rejected network call before asserting).
+## Easy
 
-- [ ] **3. CalendarComponent** — reusable component object (not tied to a single page) for selecting a check-in/check-out range. Day buttons repeat the same text ("01"–"31") across different visible months, so a plain `getByRole('button', { name: '10' })` is ambiguous — solve the disambiguation once here so page POMs never have to think about it.
+- [x] **1. Hero CTAs** — extend the POM to expose the "Open the Shop app" and
+      "Open the Clinic app" buttons (`cta-shop`, `cta-clinic`). Assert their
+      `href`s, then click one and assert the resulting URL (`/products` or
+      `/clinic`).
 
-- [ ] **4. ReservationPage POM** — drive `/reservation/{id}?checkin=...&checkout=...`: select dates via the CalendarComponent, verify the price summary math (nights × rate + cleaning fee + service fee = total), click "Reserve Now". Confirm whether landing with checkin/checkout query params alone is enough, or whether a real calendar interaction is required for Reserve Now to proceed — assert on the actual observed behavior.
+- [ ] **2. Category tiles** — assert all six category tiles (Electronics,
+      Clothing, Books, Home, Toys, Sports) are visible under `categories`, and
+      that each links to `/products?category={Name}`. Parameterize over the six
+      names instead of writing six near-identical asserts.
 
-- [ ] **5. AdminLoginPage POM** — valid and invalid credential tests. Also assert on the pre-login header state: a "Logout" button is visible on `/admin` even before authenticating — decide what the correct assertion is and encode it rather than ignoring it.
+- [ ] **3. Product card fields** — extend the POM with `getPrice(productName)`,
+      `getCategoryBadge(productName)` and `getRating(productName)` helpers
+      scoped off `product-card-{n}`, and assert the known values for all four
+      featured products (Wireless Headphones $79.99/Electronics/4.5, Smart Watch
+      $149.00/Electronics/4.2, Cotton T-Shirt $19.99/Clothing/4.0, Running Shoes
+      $89.50/Sports/4.6).
 
-- [ ] **6. BasePage + admin management** — extract a `BasePage` with the shared header/nav locators (identical across public site and admin), extend it for the logged-in admin views (room/booking/message management).
+## Medium
+
+- [ ] **4. Wishlist toggle** — clicking a card's heart icon (`wish-toggle-{n}`)
+      flips `aria-pressed`, shows a toast ("Added "X" to wishlist"), and
+      increments the `nav-wishlist` count; clicking again removes it and
+      decrements. The toast auto-dismisses after a few seconds — assert it
+      disappears by waiting for it to detach/hide, not with a fixed
+      `waitForTimeout`.
+
+- [ ] **5. Add to cart, including the out-of-stock case** — adding an in-stock
+      item increments the `nav-cart` badge and shows a toast. Running Shoes
+      (`product-card-4`) is out of stock: its `add-to-cart-4` button is
+      `disabled` and an `oos-badge` ("Out of stock") is shown — assert the
+      disabled state explicitly rather than skipping the card, and confirm the
+      cart count does _not_ change for it.
+
+- [ ] **6. Star ratings from the accessible name, not pixel-counting** —
+      `star-rating-{n}` exposes the numeric rating via `aria-label` (e.g.
+      "Rating: 4.5 out of 5"), separate from the visible "(4.5)" review-count
+      text next to it. Parse the aria-label and assert it matches the visible
+      number, rather than asserting on which star icons look filled.
+
+## Harder
+
+- [ ] **7. Promo carousel with unstable per-slide testids** — the ad banner
+      (`promo-carousel`) autoplays on an interval, and the active slide's own
+      testid changes with its content (e.g. `promo-slide-ci-config` on one
+      render, something else next) rather than being a stable index-based id —
+      so a selector keyed to one slide's testid breaks as soon as the content
+      rotates. Build a `PromoCarouselComponent` that identifies the active slide
+      via the `promo-dot-{0-6}` indicators instead, and test that
+      `promo-next`/`promo-prev` manually advance/retreat it, and that autoplay
+      genuinely advances the slide on its own — assert this with polling
+      (`expect.poll`/retrying assertion) rather than a single arbitrary
+      `waitForTimeout`.
+
+- [ ] **8. Running cart/wishlist counts across multiple products** — add two or
+      three different products to the cart and wishlist in one test and assert
+      the `nav-cart`/`nav-wishlist` badge counts reflect the running totals (not
+      just 0→1). Then reload the page (or navigate to `/products` and back) and
+      assert on whatever you actually observe — first figure out empirically
+      whether the counts persist or reset, don't assume either.
+
+- [ ] **9. BasePage/NavbarComponent shared across apps** — extract a
+      `NavbarComponent` (or `BasePage`) covering the "Practice apps" and "Learn"
+      dropdown menus (`nav-apps-menu-button`, `nav-learn-menu-button`),
+      `nav-wishlist`/`nav-cart` counts, and the "Sign in" link, since this
+      header is identical across the homepage, `/products`, and `/clinic`.
+      Verify the "Practice apps" menu opens on click and lists both "Shop" and
+      "Clinic" with their descriptions, then have `homepage` and `products` both
+      compose this component instead of duplicating its locators.
